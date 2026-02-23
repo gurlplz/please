@@ -141,24 +141,34 @@ class OpenClawFetcher:
                                 insecure = True
                                 signals.append("no_auth")
 
-                        # Probe API path - 401/403 = OpenClaw with auth; 200 = might be open
-                        api_path, api_resp, _ = await self._fetch_one(
-                            client, url, "/v1/chat/completions"
-                        )
-                        if api_resp:
-                            paths_checked.append(api_path)
-                            if api_resp.status_code in (401, 403, 405):
-                                # 405 = method not allowed (POST only) - still OpenClaw
-                                signals.append("api_endpoint")
-                                confidence += 0.4
-                            elif api_resp.status_code == 200:
-                                # Open API = insecure
-                                signals.append("api_open")
-                                confidence += 0.3
-                                insecure = True
+                        # Probe API paths - MUST get gateway response (not 404) = live instance
+                        # 404 = static page, dead ngrok tunnel, docs - NOT a running instance
+                        api_live = False
+                        for api_path in ["/v1/chat/completions", "/v1/responses"]:
+                            _, api_resp, _ = await self._fetch_one(client, url, api_path)
+                            if api_resp and api_resp.status_code != 404:
+                                paths_checked.append(api_path)
+                                if api_resp.status_code in (401, 403, 405):
+                                    signals.append("api_endpoint")
+                                    confidence += 0.4
+                                    api_live = True
+                                    break
+                                elif api_resp.status_code == 200:
+                                    signals.append("api_open")
+                                    confidence += 0.3
+                                    insecure = True
+                                    api_live = True
+                                    break
+                                elif api_resp.status_code in (400, 422):
+                                    ct = api_resp.headers.get("content-type", "")
+                                    if "json" in ct:
+                                        api_live = True
+                                        signals.append("api_endpoint")
+                                        break
 
                         confidence = min(1.0, confidence)
-                        is_openclaw = confidence >= 0.5
+                        # Require API liveness - reject static pages, dead tunnels, docs
+                        is_openclaw = confidence >= 0.5 and api_live
 
                         return ScanResult(
                             url=url,
