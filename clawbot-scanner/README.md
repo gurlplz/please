@@ -4,14 +4,16 @@ Custom crawler that discovers exposed OpenClaw (Clawbot) instances on the web **
 
 ## How It Works
 
-1. **URL Discovery** (custom crawlers):
-   - **Platform enumeration**: Generates candidate URLs from Railway, Render, Fly.io, Vercel, Heroku, etc.
-   - **Certificate Transparency**: Queries crt.sh (free) for domains matching openclaw/clawbot
-   - **GitHub**: Searches code for configs, docker-compose, deploy URLs
+1. **URL Discovery** (parallel custom crawlers):
+   - **Platform enumeration**: Railway, Render, Fly.io, Vercel, Heroku, ngrok, Replit, Glitch, Streamlit, Modal
+   - **Certificate Transparency**: crt.sh (free) for openclaw/clawbot domains
+   - **GitHub**: Code search for configs, docker-compose, deploy URLs
 
-2. **Fingerprinting**: Fetches each URL and checks for OpenClaw signatures (content, headers)
+2. **Fingerprinting**: Multi-path probe (/, /v1/chat/completions), content + header matching
 
-3. **Output**: Writes matches to JSONL file
+3. **Security assessment**: Flags instances with no auth or exposed API
+
+4. **Output**: JSONL with url, confidence, signals, insecure flag
 
 ## Setup
 
@@ -45,6 +47,7 @@ GITHUB_TOKEN=ghp_xxx python main.py
 | `--github-token` | GitHub token for 5k req/hr |
 | `--discovery-only` | Only discover URLs, don't scan |
 | `--limit` | Max URLs to scan (for testing) |
+| `--no-progress` | Disable progress bar |
 
 ## Ethics
 

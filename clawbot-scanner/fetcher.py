@@ -1,9 +1,9 @@
-"""HTTP fetcher with OpenClaw fingerprinting."""
+"""HTTP fetcher with OpenClaw fingerprinting and security assessment."""
 
 import asyncio
 import time
 from dataclasses import dataclass, field
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -20,14 +20,25 @@ class ScanResult:
     signals: list[str] = field(default_factory=list)
     status_code: int | None = None
     error: str | None = None
+    insecure: bool = False  # No auth, exposed dashboard
+    paths_checked: list[str] = field(default_factory=list)
 
 
 class OpenClawFetcher:
     """Fetches URLs and fingerprints for OpenClaw instances."""
 
-    def __init__(self, max_concurrent: int = 50, timeout: float = REQUEST_TIMEOUT):
+    # Paths to probe - order matters (root first)
+    PROBE_PATHS = ["/", "/openclaw", "/v1/chat/completions", "/dashboard"]
+
+    def __init__(
+        self,
+        max_concurrent: int = 50,
+        timeout: float = REQUEST_TIMEOUT,
+        max_retries: int = 2,
+    ):
         self.max_concurrent = max_concurrent
         self.timeout = timeout
+        self.max_retries = max_retries
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._domain_delays: dict[str, float] = {}
 
@@ -47,6 +58,30 @@ class OpenClawFetcher:
                 signals.append(f"header:{key}")
         return signals
 
+    def _has_auth(self, headers: httpx.Headers, status: int) -> bool:
+        """Check if response indicates authentication is required."""
+        # 401/403 = auth required (good)
+        if status in (401, 403):
+            return True
+        # WWW-Authenticate header = auth required
+        if "www-authenticate" in {k.lower() for k in headers.keys()}:
+            return True
+        return False
+
+    async def _fetch_one(
+        self,
+        client: httpx.AsyncClient,
+        url: str,
+        path: str = "/",
+    ) -> tuple[str, httpx.Response | None, str | None]:
+        """Fetch single URL/path. Returns (path, response, error)."""
+        full_url = urljoin(url.rstrip("/") + "/", path.lstrip("/"))
+        try:
+            resp = await client.get(full_url)
+            return (path, resp, None)
+        except Exception as e:
+            return (path, None, str(e))
+
     async def fetch(self, url: str) -> ScanResult:
         """Fetch URL and determine if it's an OpenClaw instance."""
         async with self._semaphore:
@@ -57,52 +92,102 @@ class OpenClawFetcher:
                 await asyncio.sleep(delay)
             self._domain_delays[domain] = time.monotonic()
 
-            try:
-                async with httpx.AsyncClient(
-                    timeout=self.timeout,
-                    follow_redirects=True,
-                    headers={"User-Agent": "OpenClaw-SecurityScanner/1.0"},
-                ) as client:
-                    resp = await client.get(url)
-                    signals = []
-                    confidence = 0.0
+            signals: list[str] = []
+            confidence = 0.0
+            insecure = False
+            paths_checked: list[str] = []
+            best_status: int | None = None
 
-                    # Check headers
-                    header_signals = self._check_headers(resp.headers)
-                    signals.extend(header_signals)
-                    if header_signals:
-                        confidence += 0.4
+            for attempt in range(self.max_retries + 1):
+                try:
+                    async with httpx.AsyncClient(
+                        timeout=self.timeout,
+                        follow_redirects=True,
+                        headers={"User-Agent": "OpenClaw-SecurityScanner/1.0"},
+                    ) as client:
+                        # Probe root first
+                        path, resp, err = await self._fetch_one(client, url, "/")
+                        if err:
+                            return ScanResult(
+                                url=url,
+                                is_openclaw=False,
+                                confidence=0.0,
+                                signals=[],
+                                error=err,
+                            )
 
-                    # Check body
-                    text = resp.text
-                    if self._matches_fingerprint(text):
-                        signals.append("content_match")
-                        confidence += 0.5
+                        paths_checked.append("/")
+                        best_status = resp.status_code
 
-                    # Root path often serves dashboard - extra confidence
-                    parsed = urlparse(url)
-                    if parsed.path in ("", "/") and self._matches_fingerprint(text):
-                        confidence += 0.2
+                        # Check headers
+                        header_signals = self._check_headers(resp.headers)
+                        signals.extend(header_signals)
+                        if header_signals:
+                            confidence += 0.3
 
-                    # Normalize confidence
-                    confidence = min(1.0, confidence)
-                    is_openclaw = confidence >= 0.5
+                        # Check body
+                        text = resp.text
+                        if self._matches_fingerprint(text):
+                            signals.append("content_match")
+                            confidence += 0.5
 
-                    return ScanResult(
-                        url=url,
-                        is_openclaw=is_openclaw,
-                        confidence=confidence,
-                        signals=signals,
-                        status_code=resp.status_code,
-                    )
-            except Exception as e:
-                return ScanResult(
-                    url=url,
-                    is_openclaw=False,
-                    confidence=0.0,
-                    signals=[],
-                    error=str(e),
-                )
+                        # Root path with fingerprint = dashboard
+                        parsed = urlparse(url)
+                        if parsed.path in ("", "/") and self._matches_fingerprint(text):
+                            confidence += 0.2
+                            paths_checked.append("(dashboard)")
+                            # 200 without auth = potentially insecure
+                            if not self._has_auth(resp.headers, resp.status_code):
+                                insecure = True
+                                signals.append("no_auth")
+
+                        # Probe API path - 401/403 = OpenClaw with auth; 200 = might be open
+                        api_path, api_resp, _ = await self._fetch_one(
+                            client, url, "/v1/chat/completions"
+                        )
+                        if api_resp:
+                            paths_checked.append(api_path)
+                            if api_resp.status_code in (401, 403, 405):
+                                # 405 = method not allowed (POST only) - still OpenClaw
+                                signals.append("api_endpoint")
+                                confidence += 0.4
+                            elif api_resp.status_code == 200:
+                                # Open API = insecure
+                                signals.append("api_open")
+                                confidence += 0.3
+                                insecure = True
+
+                        confidence = min(1.0, confidence)
+                        is_openclaw = confidence >= 0.5
+
+                        return ScanResult(
+                            url=url,
+                            is_openclaw=is_openclaw,
+                            confidence=confidence,
+                            signals=signals,
+                            status_code=best_status,
+                            insecure=insecure,
+                            paths_checked=paths_checked,
+                        )
+
+                except Exception as e:
+                    if attempt == self.max_retries:
+                        return ScanResult(
+                            url=url,
+                            is_openclaw=False,
+                            confidence=0.0,
+                            signals=[],
+                            error=str(e),
+                        )
+                    await asyncio.sleep(0.5 * (2**attempt))
+
+            return ScanResult(
+                url=url,
+                is_openclaw=False,
+                confidence=0.0,
+                signals=signals,
+                status_code=best_status,
+            )
 
     async def fetch_batch(self, urls: list[str]) -> list[ScanResult]:
         """Fetch multiple URLs concurrently."""

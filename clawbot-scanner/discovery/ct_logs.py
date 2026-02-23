@@ -10,35 +10,38 @@ class CTLogCrawler:
 
     CRT_SH_API = "https://crt.sh"
 
-    # Search patterns that might reveal OpenClaw deployments
-    SEARCH_PATTERNS = [
-        "%openclaw%",
-        "%clawbot%",
-        "%clawctl%",
-        "%moltbot%",
-    ]
+    SEARCH_PATTERNS = ["%openclaw%", "%clawbot%", "%clawctl%", "%moltbot%"]
 
-    def __init__(self, timeout: int = 30):
+    def __init__(self, timeout: int = 30, max_retries: int = 3):
         self.timeout = timeout
+        self.max_retries = max_retries
+
+    async def _query(self, client: httpx.AsyncClient, pattern: str) -> list | None:
+        """Query crt.sh with retries."""
+        for attempt in range(self.max_retries):
+            try:
+                resp = await client.get(
+                    self.CRT_SH_API,
+                    params={"q": pattern, "output": "json"},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                return data if isinstance(data, list) else None
+            except Exception as e:
+                if attempt == self.max_retries - 1:
+                    print(f"[CT] Error querying {pattern}: {e}")
+                    return None
+                await asyncio.sleep(2 ** (attempt + 1))
+
+        return None
 
     async def discover(self) -> AsyncIterator[str]:
         """Query crt.sh and yield unique domain names."""
-        seen = set()
+        seen: set[str] = set()
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             for pattern in self.SEARCH_PATTERNS:
-                try:
-                    resp = await client.get(
-                        self.CRT_SH_API,
-                        params={"q": pattern, "output": "json"},
-                    )
-                    resp.raise_for_status()
-                    data = resp.json()
-                except Exception as e:
-                    print(f"[CT] Error querying {pattern}: {e}")
-                    await asyncio.sleep(5)  # Back off on errors
-                    continue
-
-                if not isinstance(data, list):
+                data = await self._query(client, pattern)
+                if not data:
                     continue
 
                 for entry in data:
@@ -51,8 +54,11 @@ class CTLogCrawler:
                             continue
                         if any(c in domain for c in [" ", "\n", ","]):
                             continue
+                        # Skip wildcard-only
+                        if domain.count("*") > 0 and len(domain) < 5:
+                            continue
                         seen.add(domain)
                         yield f"https://{domain}"
                         await asyncio.sleep(0)
 
-                await asyncio.sleep(1)  # Be nice to crt.sh
+                await asyncio.sleep(1.5)  # Be nice to crt.sh

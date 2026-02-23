@@ -23,52 +23,95 @@ from discovery.github import GitHubCrawler
 from fetcher import OpenClawFetcher, ScanResult
 
 
-async def run_discovery(sources: list[str], github_token: str | None) -> list[str]:
-    """Run all discovery sources and collect URLs."""
+def _prioritize_urls(urls: list[str]) -> list[str]:
+    """Sort URLs: OpenClaw-related subdomains first, then by platform likelihood."""
+    def score(url: str) -> tuple[int, str]:
+        lower = url.lower()
+        # Priority keywords in subdomain
+        if "openclaw" in lower: return (0, url)
+        if "clawbot" in lower or "clawctl" in lower: return (1, url)
+        if "claw" in lower or "molt" in lower: return (2, url)
+        # Platform priority (railway, render most common)
+        if "railway" in lower: return (3, url)
+        if "onrender" in lower: return (4, url)
+        if "fly.dev" in lower: return (5, url)
+        return (6, url)
+    return [u for _, u in sorted((score(u), u) for u in urls)]
+
+
+async def run_discovery_parallel(sources: list[str], github_token: str | None) -> list[str]:
+    """Run discovery sources in parallel and merge results."""
     urls: set[str] = set()
 
+    async def collect(agen, name: str) -> list[str]:
+        out = []
+        try:
+            async for u in agen:
+                out.append(u)
+        except Exception as e:
+            print(f"    {name}: Error - {e}")
+        return out
+
+    tasks = []
     if "platforms" in sources:
-        print("[*] Enumerating platform subdomains...")
-        async for url in PlatformEnumerator().discover():
-            urls.add(url)
-
+        tasks.append(("platforms", collect(PlatformEnumerator().discover(), "platforms")))
     if "ct" in sources:
-        print("[*] Querying Certificate Transparency (crt.sh)...")
-        async for url in CTLogCrawler().discover():
-            urls.add(url)
-
+        tasks.append(("ct", collect(CTLogCrawler().discover(), "ct")))
     if "github" in sources:
-        print("[*] Searching GitHub for OpenClaw configs...")
-        async for url in GitHubCrawler(token=github_token).discover():
-            urls.add(url)
+        tasks.append(("github", collect(GitHubCrawler(token=github_token).discover(), "github")))
+
+    print("[*] Running discovery (parallel)...")
+    results = await asyncio.gather(*[t[1] for t in tasks])
+    for (name, _), result in zip(tasks, results):
+        for u in result:
+            urls.add(u)
+        print(f"    {name}: +{len(result)} URLs")
 
     return list(urls)
 
 
-async def run_scan(urls: list[str], output_path: Path, batch_size: int = 50) -> list[ScanResult]:
+async def run_scan(
+    urls: list[str],
+    output_path: Path,
+    batch_size: int = 50,
+    show_progress: bool = True,
+) -> list[ScanResult]:
     """Scan URLs and write results."""
     fetcher = OpenClawFetcher(max_concurrent=batch_size)
-    results: list[ScanResult] = []
     found: list[ScanResult] = []
 
+    try:
+        from tqdm import tqdm
+        iterator = tqdm(
+            range(0, len(urls), batch_size),
+            desc="Scanning",
+            unit="batch",
+            disable=not show_progress,
+        )
+    except ImportError:
+        iterator = range(0, len(urls), batch_size)
+
     with open(output_path, "a") as f:
-        for i in range(0, len(urls), batch_size):
+        for i in iterator:
             batch = urls[i : i + batch_size]
-            print(f"[*] Scanning {i + 1}-{i + len(batch)} / {len(urls)}...")
+            if not hasattr(iterator, "set_postfix"):
+                print(f"[*] Scanning {i + 1}-{i + len(batch)} / {len(urls)}...")
+
             batch_results = await fetcher.fetch_batch(batch)
             for r in batch_results:
-                results.append(r)
                 if r.is_openclaw:
                     found.append(r)
-                    line = json.dumps({
+                    record = {
                         "url": r.url,
                         "confidence": r.confidence,
                         "signals": r.signals,
                         "status_code": r.status_code,
-                    }) + "\n"
-                    f.write(line)
+                        "insecure": r.insecure,
+                    }
+                    f.write(json.dumps(record) + "\n")
                     f.flush()
-                    print(f"    [+] FOUND: {r.url} (confidence={r.confidence:.2f})")
+                    insecure_tag = " [INSECURE]" if r.insecure else ""
+                    print(f"    [+] FOUND: {r.url} (conf={r.confidence:.2f}){insecure_tag}")
 
     return found
 
@@ -111,16 +154,23 @@ async def main():
         default=None,
         help="Limit number of URLs to scan (for testing)",
     )
+    parser.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable progress bar",
+    )
     args = parser.parse_args()
 
     print("[*] OpenClaw Insecure Instance Scanner")
-    print("[*] Using custom crawlers (no Shodan/Censys)")
+    print("[*] Custom crawlers (no Shodan/Censys)")
 
-    urls = await run_discovery(args.sources, args.github_token)
+    urls = await run_discovery_parallel(args.sources, args.github_token)
+    urls = _prioritize_urls(urls)
+
     if args.limit:
         urls = urls[: args.limit]
         print(f"[*] Limited to {args.limit} URLs")
-    print(f"[*] Discovered {len(urls)} candidate URLs")
+    print(f"[*] Total: {len(urls)} candidate URLs")
 
     if not urls:
         print("[!] No URLs to scan. Try different sources or check connectivity.")
@@ -134,9 +184,13 @@ async def main():
         return 0
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    found = await run_scan(urls, args.output, args.batch_size)
+    found = await run_scan(
+        urls, args.output, args.batch_size, show_progress=not args.no_progress
+    )
 
-    print(f"\n[*] Done. Found {len(found)} OpenClaw instances. Results in {args.output}")
+    insecure_count = sum(1 for r in found if r.insecure)
+    print(f"\n[*] Done. Found {len(found)} OpenClaw instances ({insecure_count} insecure)")
+    print(f"[*] Results: {args.output}")
     return 0
 
 

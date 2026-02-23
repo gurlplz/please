@@ -35,12 +35,15 @@ class GitHubCrawler:
             headers=self._headers,
             follow_redirects=True,
         ) as client:
-            # Search code for openclaw configs, docker-compose, etc.
+            # Search code for openclaw configs, docker-compose, deploy URLs
             search_queries = [
                 "openclaw docker-compose",
                 "openclaw deploy url",
                 "clawbot railway",
                 "openclaw onrender",
+                "openclaw vercel",
+                "clawctl deploy",
+                "moltbot fly.dev",
             ]
 
             for q in search_queries:
@@ -90,5 +93,8 @@ class GitHubCrawler:
     def _is_plausible(self, url: str) -> bool:
         """Filter to plausible deployment URLs."""
         url_lower = url.lower()
-        skip = ["github.com", "npmjs.com", "npm.org", "docs.", "example.com", "localhost"]
+        skip = [
+            "github.com", "npmjs.com", "npm.org", "docs.", "example.com",
+            "localhost", "raw.githubusercontent", "img.shields", "badge",
+        ]
         return not any(s in url_lower for s in skip) and "http" in url_lower
