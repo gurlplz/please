@@ -15,7 +15,9 @@ Custom crawler that discovers exposed OpenClaw (Clawbot) instances on the web **
 
 3. **Security assessment**: Flags instances with no auth or exposed API
 
-4. **Output**: JSONL with url, confidence, signals, insecure flag
+4. **Enumeration**: `--enumerate` probes insecure instances for endpoints, config, title, headers
+
+5. **Output**: JSONL (results) + enumerated.jsonl (from insecure instances)
 
 ## Setup
 

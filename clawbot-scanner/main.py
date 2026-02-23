@@ -21,6 +21,7 @@ from discovery.platforms import PlatformEnumerator
 from discovery.ct_logs import CTLogCrawler
 from discovery.github import GitHubCrawler
 from discovery.ip_discovery import IPDiscovery
+from enumerator import InsecureEnumerator
 from fetcher import OpenClawFetcher, ScanResult
 
 
@@ -153,6 +154,28 @@ async def run_scan(
     return found
 
 
+async def run_enumeration(
+    insecure_urls: list[str],
+    output_path: Path,
+) -> int:
+    """Enumerate data from insecure instances."""
+    enumerator = InsecureEnumerator()
+    count = 0
+
+    for url in insecure_urls:
+        try:
+            data = await enumerator.enumerate(url)
+            record = enumerator.to_dict(data)
+            with open(output_path, "a") as f:
+                f.write(json.dumps(record, default=str) + "\n")
+            count += 1
+            print(f"    [ENUM] {url}")
+        except Exception as e:
+            print(f"    [ENUM] {url}: ERROR - {e}")
+
+    return count
+
+
 async def main():
     parser = argparse.ArgumentParser(description="OpenClaw insecure instance scanner")
     parser.add_argument(
@@ -225,10 +248,49 @@ async def main():
         action="store_true",
         help="Fetch AWS IP ranges and sample for scanning (adds IP discovery)",
     )
+    parser.add_argument(
+        "--enumerate",
+        action="store_true",
+        help="Enumerate data from insecure instances (endpoints, config, etc.)",
+    )
+    parser.add_argument(
+        "--enum-output",
+        type=Path,
+        default=Path("enumerated.jsonl"),
+        help="Output file for enumerated data (default: enumerated.jsonl)",
+    )
+    parser.add_argument(
+        "--enumerate-from",
+        type=Path,
+        default=None,
+        help="Enumerate from existing results file (skip scan, only enumerate insecure)",
+    )
     args = parser.parse_args()
 
     print("[*] OpenClaw Insecure Instance Scanner")
     print("[*] Custom crawlers (no Shodan/Censys)")
+
+    # Enumerate-only mode (from existing results)
+    if args.enumerate_from and args.enumerate_from.exists():
+        insecure_urls = []
+        for line in args.enumerate_from.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+                if rec.get("insecure") and rec.get("url"):
+                    insecure_urls.append(rec["url"])
+            except json.JSONDecodeError:
+                continue
+        insecure_urls = list(dict.fromkeys(insecure_urls))
+        if insecure_urls:
+            print(f"[*] Enumerating {len(insecure_urls)} insecure instances from {args.enumerate_from}")
+            args.enum_output.parent.mkdir(parents=True, exist_ok=True)
+            await run_enumeration(insecure_urls, args.enum_output)
+            print(f"[*] Done. Output: {args.enum_output}")
+        else:
+            print("[!] No insecure instances in file")
+        return 0
 
     urls = await run_discovery_parallel(
         args.sources,
@@ -263,6 +325,14 @@ async def main():
     )
 
     insecure_count = sum(1 for r in found if r.insecure)
+    insecure_urls = [r.url for r in found if r.insecure]
+
+    if args.enumerate and insecure_urls:
+        print(f"\n[*] Enumerating data from {len(insecure_urls)} insecure instances...")
+        args.enum_output.parent.mkdir(parents=True, exist_ok=True)
+        enum_count = await run_enumeration(insecure_urls, args.enum_output)
+        print(f"    Enumerated {enum_count} instances -> {args.enum_output}")
+
     print(f"\n[*] Done. Found {len(found)} OpenClaw instances ({insecure_count} insecure)")
     print(f"[*] Results: {args.output}")
     return 0
