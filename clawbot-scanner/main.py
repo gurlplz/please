@@ -20,6 +20,7 @@ from config import RESULTS_FILE
 from discovery.platforms import PlatformEnumerator
 from discovery.ct_logs import CTLogCrawler
 from discovery.github import GitHubCrawler
+from discovery.ip_discovery import IPDiscovery
 from fetcher import OpenClawFetcher, ScanResult
 
 
@@ -31,6 +32,11 @@ def _prioritize_urls(urls: list[str]) -> list[str]:
         if "openclaw" in lower: return (0, url)
         if "clawbot" in lower or "clawctl" in lower: return (1, url)
         if "claw" in lower or "molt" in lower: return (2, url)
+        # Direct IPs - prioritize (often find more exposed instances)
+        if "://" in url:
+            host = url.split("://", 1)[1].split("/")[0].split(":")[0]
+            if host and host[0].isdigit():
+                return (2, url)
         # Platform priority
         if "railway" in lower: return (3, url)
         if "onrender" in lower: return (4, url)
@@ -46,11 +52,13 @@ async def run_discovery_parallel(
     platforms: list[str] | None = None,
     wordlist_path: Path | str | None = None,
     url_file: Path | str | None = None,
+    ip_file: Path | str | None = None,
+    fetch_cloud_ips: bool = False,
 ) -> list[str]:
     """Run discovery sources in parallel and merge results."""
     urls: set[str] = set()
 
-    # Custom URL file (expands search area with user-provided seeds)
+    # Custom URL file
     if url_file:
         path = Path(url_file)
         if path.exists():
@@ -82,6 +90,12 @@ async def run_discovery_parallel(
         tasks.append(("ct", collect(CTLogCrawler().discover(), "ct")))
     if "github" in sources:
         tasks.append(("github", collect(GitHubCrawler(token=github_token).discover(), "github")))
+    if "ip" in sources or ip_file or fetch_cloud_ips:
+        ip_discovery = IPDiscovery(
+            ip_file=ip_file,
+            fetch_cloud=fetch_cloud_ips,
+        )
+        tasks.append(("ip", collect(ip_discovery.discover(), "ip")))
 
     print("[*] Running discovery (parallel)...")
     results = await asyncio.gather(*[t[1] for t in tasks])
@@ -145,7 +159,7 @@ async def main():
         "--sources",
         nargs="+",
         default=["platforms", "ct", "github"],
-        choices=["platforms", "ct", "github"],
+        choices=["platforms", "ct", "github", "ip"],
         help="Discovery sources to use",
     )
     parser.add_argument(
@@ -200,6 +214,17 @@ async def main():
         default=None,
         help="File with custom URLs to scan (one per line, http/https)",
     )
+    parser.add_argument(
+        "--ip-file",
+        type=Path,
+        default=None,
+        help="File with IPs to scan (one per line, expands to IP:port for 3000,18789,8080,5000,80,443)",
+    )
+    parser.add_argument(
+        "--fetch-cloud-ips",
+        action="store_true",
+        help="Fetch AWS IP ranges and sample for scanning (adds IP discovery)",
+    )
     args = parser.parse_args()
 
     print("[*] OpenClaw Insecure Instance Scanner")
@@ -211,6 +236,8 @@ async def main():
         platforms=args.platforms,
         wordlist_path=args.wordlist,
         url_file=args.url_file,
+        ip_file=args.ip_file,
+        fetch_cloud_ips=args.fetch_cloud_ips,
     )
     urls = _prioritize_urls(urls)
 

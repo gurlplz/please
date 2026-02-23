@@ -8,6 +8,7 @@ Custom crawler that discovers exposed OpenClaw (Clawbot) instances on the web **
    - **Platform enumeration**: Railway, Render, Fly.io, Vercel, Netlify, Heroku, ngrok, Replit, Glitch, Streamlit, Modal, Cloudflare Pages, Deno Deploy, AWS Amplify, Azure, Surge, GitHub/GitLab/Codeberg Pages, Koyeb, PythonAnywhere, CodeSandbox, StackBlitz, Observable, Gradio, Hugging Face Spaces
    - **Certificate Transparency**: crt.sh for openclaw/clawbot/claw-assistant domains
    - **GitHub**: Code + repo search (READMEs) for configs, deploy URLs
+   - **IP discovery**: Direct IP addresses via `--ip-file` or `--fetch-cloud-ips` (AWS ranges)
    - **Custom**: `--wordlist`, `--url-file` for user-provided seeds
 
 2. **Fingerprinting**: Multi-path probe (/, /v1/chat/completions), content + header matching
@@ -49,6 +50,11 @@ GITHUB_TOKEN=ghp_xxx python main.py
 | `--discovery-only` | Only discover URLs, don't scan |
 | `--limit` | Max URLs to scan (for testing) |
 | `--no-progress` | Disable progress bar |
+| `--platforms` | Limit to specific platforms (e.g. railway render) |
+| `--wordlist` | Custom subdomain wordlist file |
+| `--url-file` | File with custom URLs to scan |
+| `--ip-file` | File with IPs (expands to IP:3000,18789,8080,5000,80,443) |
+| `--fetch-cloud-ips` | Fetch AWS IP ranges, sample & scan |
 
 ## Ethics
 
