@@ -5,9 +5,10 @@ Custom crawler that discovers exposed OpenClaw (Clawbot) instances on the web **
 ## How It Works
 
 1. **URL Discovery** (parallel custom crawlers):
-   - **Platform enumeration**: Railway, Render, Fly.io, Vercel, Heroku, ngrok, Replit, Glitch, Streamlit, Modal
-   - **Certificate Transparency**: crt.sh (free) for openclaw/clawbot domains
-   - **GitHub**: Code search for configs, docker-compose, deploy URLs
+   - **Platform enumeration**: Railway, Render, Fly.io, Vercel, Netlify, Heroku, ngrok, Replit, Glitch, Streamlit, Modal, Cloudflare Pages, Deno Deploy, AWS Amplify, Azure, Surge, GitHub/GitLab/Codeberg Pages, Koyeb, PythonAnywhere, CodeSandbox, StackBlitz, Observable, Gradio, Hugging Face Spaces
+   - **Certificate Transparency**: crt.sh for openclaw/clawbot/claw-assistant domains
+   - **GitHub**: Code + repo search (READMEs) for configs, deploy URLs
+   - **Custom**: `--wordlist`, `--url-file` for user-provided seeds
 
 2. **Fingerprinting**: Multi-path probe (/, /v1/chat/completions), content + header matching
 

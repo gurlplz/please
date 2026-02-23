@@ -10,7 +10,17 @@ class CTLogCrawler:
 
     CRT_SH_API = "https://crt.sh"
 
-    SEARCH_PATTERNS = ["%openclaw%", "%clawbot%", "%clawctl%", "%moltbot%"]
+    # Expanded search patterns for broader coverage
+    SEARCH_PATTERNS = [
+        "%openclaw%",
+        "%clawbot%",
+        "%clawctl%",
+        "%moltbot%",
+        "%open-claw%",
+        "%claw-bot%",
+        "%claw-assistant%",
+        "%claw-gateway%",
+    ]
 
     def __init__(self, timeout: int = 30, max_retries: int = 3):
         self.timeout = timeout
@@ -54,11 +64,10 @@ class CTLogCrawler:
                             continue
                         if any(c in domain for c in [" ", "\n", ","]):
                             continue
-                        # Skip wildcard-only
                         if domain.count("*") > 0 and len(domain) < 5:
                             continue
                         seen.add(domain)
                         yield f"https://{domain}"
                         await asyncio.sleep(0)
 
-                await asyncio.sleep(1.5)  # Be nice to crt.sh
+                await asyncio.sleep(1.5)

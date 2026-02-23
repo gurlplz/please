@@ -31,17 +31,36 @@ def _prioritize_urls(urls: list[str]) -> list[str]:
         if "openclaw" in lower: return (0, url)
         if "clawbot" in lower or "clawctl" in lower: return (1, url)
         if "claw" in lower or "molt" in lower: return (2, url)
-        # Platform priority (railway, render most common)
+        # Platform priority
         if "railway" in lower: return (3, url)
         if "onrender" in lower: return (4, url)
         if "fly.dev" in lower: return (5, url)
+        if "netlify" in lower or "pages.dev" in lower: return (5, url)
         return (6, url)
     return [u for _, u in sorted((score(u), u) for u in urls)]
 
 
-async def run_discovery_parallel(sources: list[str], github_token: str | None) -> list[str]:
+async def run_discovery_parallel(
+    sources: list[str],
+    github_token: str | None,
+    platforms: list[str] | None = None,
+    wordlist_path: Path | str | None = None,
+    url_file: Path | str | None = None,
+) -> list[str]:
     """Run discovery sources in parallel and merge results."""
     urls: set[str] = set()
+
+    # Custom URL file (expands search area with user-provided seeds)
+    if url_file:
+        path = Path(url_file)
+        if path.exists():
+            custom = [
+                line.strip() for line in path.read_text().splitlines()
+                if line.strip() and (line.startswith("http://") or line.startswith("https://"))
+            ]
+            for u in custom:
+                urls.add(u)
+            print(f"    url-file: +{len(custom)} URLs")
 
     async def collect(agen, name: str) -> list[str]:
         out = []
@@ -54,7 +73,11 @@ async def run_discovery_parallel(sources: list[str], github_token: str | None) -
 
     tasks = []
     if "platforms" in sources:
-        tasks.append(("platforms", collect(PlatformEnumerator().discover(), "platforms")))
+        enum = PlatformEnumerator(
+            platforms=platforms,
+            wordlist_path=wordlist_path,
+        )
+        tasks.append(("platforms", collect(enum.discover(), "platforms")))
     if "ct" in sources:
         tasks.append(("ct", collect(CTLogCrawler().discover(), "ct")))
     if "github" in sources:
@@ -159,12 +182,36 @@ async def main():
         action="store_true",
         help="Disable progress bar",
     )
+    parser.add_argument(
+        "--platforms",
+        nargs="+",
+        default=None,
+        help="Platforms to enumerate (default: all). E.g. railway render vercel",
+    )
+    parser.add_argument(
+        "--wordlist",
+        type=Path,
+        default=None,
+        help="Custom subdomain wordlist file (one per line)",
+    )
+    parser.add_argument(
+        "--url-file",
+        type=Path,
+        default=None,
+        help="File with custom URLs to scan (one per line, http/https)",
+    )
     args = parser.parse_args()
 
     print("[*] OpenClaw Insecure Instance Scanner")
     print("[*] Custom crawlers (no Shodan/Censys)")
 
-    urls = await run_discovery_parallel(args.sources, args.github_token)
+    urls = await run_discovery_parallel(
+        args.sources,
+        args.github_token,
+        platforms=args.platforms,
+        wordlist_path=args.wordlist,
+        url_file=args.url_file,
+    )
     urls = _prioritize_urls(urls)
 
     if args.limit:
