@@ -21,6 +21,9 @@ from discovery.platforms import PlatformEnumerator
 from discovery.ct_logs import CTLogCrawler
 from discovery.github import GitHubCrawler
 from discovery.ip_discovery import IPDiscovery
+from discovery.index_sites import IndexSiteCrawler
+from discovery.zoomeye import ZoomeyeCrawler
+from discovery.community import CommunityCrawler
 from enumerator import InsecureEnumerator
 from fetcher import OpenClawFetcher, ScanResult
 
@@ -97,12 +100,20 @@ async def run_discovery_parallel(
             fetch_cloud=fetch_cloud_ips,
         )
         tasks.append(("ip", collect(ip_discovery.discover(), "ip")))
+    if "index" in sources:
+        tasks.append(("index", collect(IndexSiteCrawler().discover(), "index")))
+    if "zoomeye" in sources:
+        zoomeye_key = os.environ.get("ZOOMEYE_API_KEY")
+        tasks.append(("zoomeye", collect(ZoomeyeCrawler(api_key=zoomeye_key).discover(), "zoomeye")))
+    if "community" in sources:
+        tasks.append(("community", collect(CommunityCrawler().discover(), "community")))
 
     print("[*] Running discovery (parallel)...")
     results = await asyncio.gather(*[t[1] for t in tasks])
     for (name, _), result in zip(tasks, results):
         for u in result:
-            urls.add(u)
+            u_clean = u.rstrip("\\")
+            urls.add(u_clean)
         print(f"    {name}: +{len(result)} URLs")
 
     return list(urls)
@@ -181,8 +192,8 @@ async def main():
     parser.add_argument(
         "--sources",
         nargs="+",
-        default=["platforms", "ct", "github"],
-        choices=["platforms", "ct", "github", "ip"],
+        default=["platforms", "ct", "github", "index"],
+        choices=["platforms", "ct", "github", "ip", "index", "zoomeye", "community"],
         help="Discovery sources to use",
     )
     parser.add_argument(

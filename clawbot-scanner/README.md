@@ -8,6 +8,9 @@ Custom crawler that discovers exposed OpenClaw (Clawbot) instances on the web **
    - **Platform enumeration**: Railway, Render, Fly.io, Vercel, Netlify, Heroku, ngrok, Replit, Glitch, Streamlit, Modal, Cloudflare Pages, Deno Deploy, AWS Amplify, Azure, Surge, GitHub/GitLab/Codeberg Pages, Koyeb, PythonAnywhere, CodeSandbox, StackBlitz, Observable, Gradio, Hugging Face Spaces
    - **Certificate Transparency**: crt.sh for openclaw/clawbot/claw-assistant domains
    - **GitHub**: Code + repo search (READMEs) for configs, deploy URLs
+   - **Index sites**: Crawl OpenClaw directories (openclawdirectory.dev, awesome-openclaw, etc.)
+   - **Zoomeye**: Shodan alternative - set ZOOMEYE_API_KEY (free tier)
+   - **Community**: Reddit, Hacker News - extract URLs from discussions
    - **IP discovery**: Direct IP addresses via `--ip-file` or `--fetch-cloud-ips` (AWS ranges)
    - **Custom**: `--wordlist`, `--url-file` for user-provided seeds
 
@@ -57,6 +60,9 @@ GITHUB_TOKEN=ghp_xxx python main.py
 | `--url-file` | File with custom URLs to scan |
 | `--ip-file` | File with IPs (expands to IP:3000,18789,8080,5000,80,443) |
 | `--fetch-cloud-ips` | Fetch AWS IP ranges, sample & scan |
+| `--enumerate` | Enumerate data from insecure instances after scan |
+| `--enumerate-from` | Enumerate from existing results file (skip scan) |
+| `--enum-output` | Output file for enumerated data |
 
 ## Ethics
 

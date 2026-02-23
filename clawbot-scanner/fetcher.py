@@ -142,29 +142,32 @@ class OpenClawFetcher:
                                 signals.append("no_auth")
 
                         # Probe API paths - MUST get gateway response (not 404) = live instance
-                        # 404 = static page, dead ngrok tunnel, docs - NOT a running instance
+                        # Reject: 404, or 200 with HTML (catch-all/static server)
                         api_live = False
                         for api_path in ["/v1/chat/completions", "/v1/responses"]:
                             _, api_resp, _ = await self._fetch_one(client, url, api_path)
-                            if api_resp and api_resp.status_code != 404:
-                                paths_checked.append(api_path)
-                                if api_resp.status_code in (401, 403, 405):
-                                    signals.append("api_endpoint")
-                                    confidence += 0.4
-                                    api_live = True
-                                    break
-                                elif api_resp.status_code == 200:
-                                    signals.append("api_open")
-                                    confidence += 0.3
-                                    insecure = True
-                                    api_live = True
-                                    break
-                                elif api_resp.status_code in (400, 422):
-                                    ct = api_resp.headers.get("content-type", "")
-                                    if "json" in ct:
-                                        api_live = True
-                                        signals.append("api_endpoint")
-                                        break
+                            if not api_resp or api_resp.status_code == 404:
+                                continue
+                            ct = (api_resp.headers.get("content-type") or "").lower()
+                            # 200 with HTML = catch-all, not real API
+                            if api_resp.status_code == 200 and "text/html" in ct:
+                                continue
+                            paths_checked.append(api_path)
+                            if api_resp.status_code in (401, 403, 405):
+                                signals.append("api_endpoint")
+                                confidence += 0.4
+                                api_live = True
+                                break
+                            elif api_resp.status_code == 200:
+                                signals.append("api_open")
+                                confidence += 0.3
+                                insecure = True
+                                api_live = True
+                                break
+                            elif api_resp.status_code in (400, 422) and "json" in ct:
+                                api_live = True
+                                signals.append("api_endpoint")
+                                break
 
                         confidence = min(1.0, confidence)
                         # Require API liveness - reject static pages, dead tunnels, docs
