@@ -14,7 +14,7 @@ Custom crawler that discovers exposed OpenClaw (Clawbot) instances on the web **
    - **IP discovery**: Direct IP addresses via `--ip-file` or `--fetch-cloud-ips` (AWS ranges)
    - **Custom**: `--wordlist`, `--url-file` for user-provided seeds
 
-2. **Fingerprinting**: Multi-path probe (/, /v1/chat/completions), content + header matching
+2. **Fingerprinting** (Shodan-style): favicon hash (mmh3), http.title, product (Server/X-Powered-By), http.html, API liveness
 
 3. **Security assessment**: Flags instances with no auth or exposed API
 

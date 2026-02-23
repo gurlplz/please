@@ -1,11 +1,17 @@
 """Configuration for OpenClaw scanner."""
 
-# OpenClaw fingerprints - used to identify instances
+# OpenClaw fingerprints - used to identify instances (Shodan-style)
 FINGERPRINTS = {
     "content": ["openclaw", "clawbot", "clawctl", "control-ui", "gateway"],
     "paths": ["/", "/v1/chat/completions", "/v1/responses", "/openclaw"],
     "headers": ["x-openclaw", "x-clawbot"],
+    # Product names in Server, X-Powered-By, etc.
+    "product": ["openclaw", "clawbot", "clawctl", "moltbot"],
 }
+
+# Shodan-style favicon hashes (mmh3 of base64 favicon)
+# Computed from learn.openclaw.academy, openclaw.academy
+FAVICON_HASHES = [-318086011]
 
 # Default ports OpenClaw runs on
 DEFAULT_PORTS = [3000, 18789, 8080, 5000]

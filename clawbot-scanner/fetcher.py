@@ -1,4 +1,4 @@
-"""HTTP fetcher with OpenClaw fingerprinting and security assessment."""
+"""HTTP fetcher with OpenClaw fingerprinting (Shodan-style) and security assessment."""
 
 import asyncio
 import time
@@ -8,11 +8,19 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from config import FINGERPRINTS, REQUEST_TIMEOUT, RATE_LIMIT_DELAY
+from fingerprint import (
+    compute_favicon_hash,
+    extract_product,
+    extract_title,
+    matches_favicon,
+    matches_product,
+    matches_title,
+)
 
 
 @dataclass
 class ScanResult:
-    """Result of scanning a URL for OpenClaw."""
+    """Result of scanning a URL for OpenClaw (Shodan-style banner data)."""
 
     url: str
     is_openclaw: bool
@@ -22,6 +30,10 @@ class ScanResult:
     error: str | None = None
     insecure: bool = False  # No auth, exposed dashboard
     paths_checked: list[str] = field(default_factory=list)
+    # Shodan-style banner fields
+    product: str | None = None
+    http_title: str | None = None
+    favicon_hash: int | None = None
 
 
 class OpenClawFetcher:
@@ -125,11 +137,32 @@ class OpenClawFetcher:
                         if header_signals:
                             confidence += 0.3
 
-                        # Check body
+                        # Shodan-style: product detection (Server, X-Powered-By)
+                        product = extract_product(resp.headers)
+                        if product and matches_product(product):
+                            signals.append("product_header")
+                            confidence += 0.4
+
+                        # Shodan-style: http.title
+                        title = extract_title(resp.text)
+                        if title and matches_title(title):
+                            signals.append("http_title")
+                            confidence += 0.3
+
+                        # Check body (http.html)
                         text = resp.text
                         if self._matches_fingerprint(text):
                             signals.append("content_match")
                             confidence += 0.5
+
+                        # Shodan-style: favicon hash
+                        _, fav_resp, _ = await self._fetch_one(client, url, "/favicon.ico")
+                        favicon_hash = None
+                        if fav_resp and fav_resp.status_code == 200 and fav_resp.content:
+                            favicon_hash = compute_favicon_hash(fav_resp.content)
+                            if favicon_hash and matches_favicon(fav_resp.content):
+                                signals.append("favicon_hash")
+                                confidence += 0.5
 
                         # Root path with fingerprint = dashboard
                         parsed = urlparse(url)
@@ -181,6 +214,9 @@ class OpenClawFetcher:
                             status_code=best_status,
                             insecure=insecure,
                             paths_checked=paths_checked,
+                            product=product if product else None,
+                            http_title=title if title else None,
+                            favicon_hash=favicon_hash,
                         )
 
                 except Exception as e:

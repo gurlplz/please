@@ -156,6 +156,9 @@ async def run_scan(
                         "signals": r.signals,
                         "status_code": r.status_code,
                         "insecure": r.insecure,
+                        "product": r.product,
+                        "http_title": r.http_title,
+                        "favicon_hash": r.favicon_hash,
                     }
                     f.write(json.dumps(record) + "\n")
                     f.flush()

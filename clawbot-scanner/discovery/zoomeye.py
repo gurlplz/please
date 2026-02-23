@@ -10,14 +10,17 @@ from typing import AsyncIterator
 
 ZOOMEYE_API = "https://api.zoomeye.org"
 
-# Queries: OpenClaw/clawbot + common ports (no subscription needed for basic search)
+# Shodan-style queries: title (http.title), body (http.html), product
 SEARCH_QUERIES = [
     'title="openclaw"',
     'title="clawbot"',
+    'title="clawctl"',
+    'body="openclaw"',
+    'body="clawbot"',
+    'body="control-ui"',
     'body="openclaw" +port:"3000"',
     'body="openclaw" +port:"18789"',
     'body="clawbot" +port:"3000"',
-    'body="clawctl" +port:"18789"',
 ]
 
 
