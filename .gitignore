@@ -6,3 +6,4 @@ venv/
 .venv/
 results.jsonl
 *.jsonl
+money-law/data/
