@@ -1,0 +1,20 @@
+{
+  "name": "replicated-pin-module",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "description": "Replicates pin state across multiple peers using CRDT-inspired conflict-free replication",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node src/ReplicatedPinModule.test.js"
+  },
+  "keywords": [
+    "pin",
+    "replication",
+    "ipfs",
+    "crdt",
+    "distributed",
+    "blockchain"
+  ],
+  "author": "",
+  "license": "MIT"
+}
