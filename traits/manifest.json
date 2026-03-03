@@ -1,0 +1,88 @@
+{
+  "layerOrder": ["background", "face", "eyes", "mouth", "hair", "accessory", "special"],
+  "traits": {
+    "background": [
+      "bg-solid-blue",
+      "bg-solid-purple",
+      "bg-solid-green",
+      "bg-solid-pink",
+      "bg-gradient-sunset",
+      "bg-gradient-ocean"
+    ],
+    "face": [
+      "face-round-light",
+      "face-round-tan",
+      "face-round-medium",
+      "face-round-dark",
+      "face-oval-light",
+      "face-oval-tan",
+      "face-egg-light",
+      "face-egg-green",
+      "face-egg-blue",
+      "face-monster-purple"
+    ],
+    "eyes": [
+      "eyes-default",
+      "eyes-big",
+      "eyes-slanted",
+      "eyes-closed",
+      "eyes-happy",
+      "eyes-monster",
+      "eyes-alien"
+    ],
+    "mouth": [
+      "mouth-smile",
+      "mouth-neutral",
+      "mouth-smirk",
+      "mouth-grin",
+      "mouth-monster"
+    ],
+    "hair": [
+      "hair-short-black",
+      "hair-short-brown",
+      "hair-short-blonde",
+      "hair-short-red",
+      "hair-long-black",
+      "hair-long-brown",
+      "hair-long-blonde",
+      "hair-curly-black",
+      "hair-curly-brown",
+      "hair-spiky-black",
+      "hair-spiky-blue",
+      "hair-mohawk-black",
+      "hair-mohawk-green",
+      "hair-bob-black",
+      "hair-bald"
+    ],
+    "accessory": [
+      "acc-none",
+      "acc-hat",
+      "acc-glasses",
+      "acc-bow",
+      "acc-headphones"
+    ],
+    "special": [
+      "special-none",
+      "special-horns",
+      "special-antennae",
+      "special-egg-cracks",
+      "special-alien-ears",
+      "special-monster-spikes"
+    ]
+  },
+  "compatibility": {
+    "face-monster-purple": {
+      "eyes": ["eyes-monster", "eyes-alien"],
+      "mouth": ["mouth-monster"]
+    },
+    "face-egg-light": {
+      "special": ["special-egg-cracks", "special-none"]
+    },
+    "face-egg-green": {
+      "special": ["special-egg-cracks", "special-antennae", "special-none"]
+    },
+    "face-egg-blue": {
+      "special": ["special-alien-ears", "special-antennae", "special-none"]
+    }
+  }
+}
