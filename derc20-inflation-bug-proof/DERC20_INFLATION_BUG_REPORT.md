@@ -2,7 +2,8 @@
 
 **Nika Finance** — $1M Bug Bounty Program  
 **Contract**: [0x242d6aA030Cd98aaDFe44192E11013406673EBa3](https://basescan.org/address/0x242d6aA030Cd98aaDFe44192E11013406673EBa3#code) (Base)  
-**Date**: March 3, 2026
+**Date**: March 3, 2026  
+**Timestamp**: 2026-03-03T23:28:30Z (UTC)
 
 ---
 
