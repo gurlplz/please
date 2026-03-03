@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile Picture Generator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>Profile Picture Generator</h1>
+      <p class="subtitle">Layered SVG traits • Random combinations • Unique avatars</p>
+    </header>
+
+    <main class="main">
+      <section class="preview-section">
+        <div class="preview-container">
+          <canvas id="avatarCanvas" width="400" height="400"></canvas>
+          <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="spinner"></div>
+          </div>
+        </div>
+        <div class="preview-actions">
+          <button id="generateBtn" class="btn btn-primary">Generate Random</button>
+          <button id="downloadBtn" class="btn btn-secondary">Download PNG</button>
+        </div>
+        <div id="traitDisplay" class="trait-display"></div>
+      </section>
+
+      <section class="controls-section">
+        <h2>Customize (optional)</h2>
+        <div class="trait-selectors" id="traitSelectors">
+          <!-- Populated by JS -->
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Each avatar is built from layered SVG traits — backgrounds, faces, eyes, mouths, hair, accessories & special features.</p>
+    </footer>
+  </div>
+
+  <script src="generator.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
