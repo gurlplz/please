@@ -52,6 +52,65 @@ def simulate_nika_inflation(
     return mintable, expected_simple, extra
 
 
+def show_work(initial_supply: int, rate_wad: int, years: float):
+    """Step-by-step derivation showing the compounding bug."""
+    S = initial_supply
+    R = rate_wad
+    SEC = int(years * SEC_PER_YEAR)
+    now = SEC
+
+    print("\n" + "=" * 70)
+    print(f"STEP-BY-STEP WORK: {years} years elapsed")
+    print("=" * 70)
+    print(f"  Initial supply S₀ = {S / 10**18:,.0f} tokens")
+    print(f"  Rate r = 2% (WAD)")
+    print(f"  Formula: yearMint = supply × r × time / (1e18 × 365 days)")
+    print()
+
+    supply = S
+    mintable = 0
+    local_current = 0
+    local_last = 0
+    iter_num = 0
+
+    while now > local_current + SEC_PER_YEAR:
+        iter_num += 1
+        time_left = local_current + SEC_PER_YEAR - local_last
+        year_mint = (supply * R * time_left) // (WAD * SEC_PER_YEAR)
+
+        print(f"  --- Iteration {iter_num} (Year {iter_num}) ---")
+        print(f"      supply (base for this year) = {supply / 10**18:,.2f}")
+        print(f"      timeLeftInCurrentYear      = {time_left} sec (= 1 year)")
+        print(f"      yearMint = {supply / 10**18:,.0f} × 0.02 × {time_left} / (1e18 × {SEC_PER_YEAR})")
+        print(f"             = {year_mint / 10**18:,.2f} tokens")
+        print(f"      supply += yearMint  →  supply = {supply / 10**18:,.2f} + {year_mint / 10**18:,.2f} = {(supply + year_mint) / 10**18:,.2f}  ← BUG: inflated for next iter")
+        print()
+
+        supply += year_mint
+        mintable += year_mint
+        local_current += SEC_PER_YEAR
+        local_last = local_current
+
+    if now > local_last:
+        partial_time = now - local_last
+        partial_mint = (supply * R * partial_time) // (WAD * SEC_PER_YEAR)
+        print(f"  --- Partial year (remaining {partial_time} sec) ---")
+        print(f"      supply (now INFLATED) = {supply / 10**18:,.2f}")
+        print(f"      partialMint = {supply / 10**18:,.0f} × 0.02 × {partial_time} / (1e18 × {SEC_PER_YEAR})")
+        print(f"                 = {partial_mint / 10**18:,.2f} tokens")
+        mintable += partial_mint
+
+    expected_simple = (S * R * SEC) // (WAD * SEC_PER_YEAR)
+    extra = mintable - expected_simple
+
+    print()
+    print("  --- RESULT ---")
+    print(f"      Actual minted (with bug)  : {mintable / 10**18:,.2f} tokens")
+    print(f"      Simple expected (2%×yr)   : {expected_simple / 10**18:,.2f} tokens")
+    print(f"      EXTRA (compounding effect): {extra / 10**18:,.2f} tokens")
+    print()
+
+
 def run_poc():
     S = 1_000_000 * 10**18  # 1M tokens initial supply
     R = int(0.02 * 10**18)  # 2% WAD rate (MAX_YEARLY_MINT_RATE_WAD)
@@ -63,6 +122,9 @@ def run_poc():
     print(f"Yearly rate: 2% (WAD: {R})")
     print()
 
+    # Show step-by-step work for 2-year case (clearest proof)
+    show_work(S, R, 2.0)
+
     test_cases = [
         (1, "exactly 1 year"),
         (2, "exactly 2 years"),
@@ -71,6 +133,9 @@ def run_poc():
         (5, "5 years"),
     ]
 
+    print("=" * 70)
+    print("SUMMARY (all test cases)")
+    print("=" * 70)
     for years, desc in test_cases:
         seconds = int(years * SEC_PER_YEAR)
         mintable, expected, extra = simulate_nika_inflation(S, R, seconds)
