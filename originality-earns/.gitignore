@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Foundry
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+
+# Debug / OS
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE
+.idea/
+.vscode/
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
