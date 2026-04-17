@@ -1,0 +1,18 @@
+[project]
+name = "app-finder"
+version = "0.1.0"
+description = "CLI tools to discover applications on disk and analyze scan exports."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+app-finder = "app_finder.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app_finder*"]
