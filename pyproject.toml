@@ -1,0 +1,18 @@
+[project]
+name = "periodic-stability"
+version = "0.1.0"
+description = "Compute Periodic Stability Index (IE1/r) and related descriptors from public periodic-table data."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+periodic-stability = "periodic_stability.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["periodic_stability*"]
